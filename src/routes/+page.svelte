@@ -15,7 +15,9 @@
 
   const RATES = [125, 250, 500, 1000];
 
-  let config = $state<Config>({
+  // Фабрика, а не литерал: каждый вызов отдаёт свежий объект и свежий
+  // массив dpis, иначе сброс и инициализация делили бы одну ссылку.
+  const defaults = (): Config => ({
     polling_rate: 125,
     dpis: [800, 1600, 3200, 4000, 5000, 12000],
     active_dpi: 3,
@@ -25,6 +27,8 @@
     ripple_control: false,
     angle_snap: false,
   });
+
+  let config = $state<Config>(defaults());
 
   let status = $state<{ kind: "ok" | "err" | "busy" | "idle"; text: string }>({
     kind: "idle",
@@ -92,16 +96,7 @@
   }
 
   function resetDefaults() {
-    config = {
-      polling_rate: 125,
-      dpis: [800, 1600, 3200, 4000, 5000, 12000],
-      active_dpi: 3,
-      sleep_time: 6,
-      deep_sleep_time: 12,
-      key_response_time: 4,
-      ripple_control: false,
-      angle_snap: false,
-    };
+    config = defaults();
     status = { kind: "idle", text: "Подставлены значения по умолчанию" };
   }
 
