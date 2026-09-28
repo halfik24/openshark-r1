@@ -132,11 +132,7 @@ pub fn run() {
         // Второй запуск поднимает уже открытое окно вместо дубля, который
         // успевает перехватить usb-интерфейс у первого.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.unminimize();
-                let _ = window.set_focus();
-            }
+            show_main_window(app)
         }))
         .plugin(tauri_plugin_opener::init())
         .on_window_event(|window, event| {
@@ -201,17 +197,20 @@ pub fn run() {
         });
 }
 
+/// Показать скрытое или свёрнутое окно настроек (label "main").
+fn show_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
+
 fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
     match event.id().as_ref() {
         "quit" => app.exit(0),
-        "settings" => {
-            // Reveal the hidden settings window (label "main").
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.unminimize();
-                let _ = window.set_focus();
-            }
-        }
+        // Reveal the hidden settings window.
+        "settings" => show_main_window(app),
         "refresh" => {
             let state = app.state::<AppState>();
             let _ = state.refresh_tx.lock().expect("refresh channel").send(());
