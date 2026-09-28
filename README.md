@@ -56,6 +56,22 @@ pnpm tauri dev
 pnpm tauri build
 ```
 
+### AppImage (Arch/CachyOS)
+
+Кеш, который Tauri скачивает для AppImage, на свежих системах ломается:
+linuxdeploy старой сборки падает своим `strip` на `.relr.dyn`, а gtk-плагин
+прописывает форс `GDK_BACKEND=x11` — на NVIDIA+Wayland окно остаётся пустым.
+Один раз подготовить кеш:
+
+```sh
+sudo pacman -S --needed patchelf
+pnpm tauri build || true   # пополняет кеш; на strip может упасть — это нормально
+bash scripts/appimage-fix.sh
+pnpm tauri build
+```
+
+После очистки `~/.cache/tauri` шаги с `appimage-fix.sh` повторить.
+
 Тесты драйвера (хардварные по умолчанию выключены):
 
 ```sh
