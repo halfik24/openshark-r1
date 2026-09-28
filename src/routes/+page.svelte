@@ -180,7 +180,12 @@
               title="Сделать активной"
               aria-label={`Активировать ступень ${i + 1}`}
               aria-pressed={config.active_dpi === i + 1}
-              onclick={() => (config.active_dpi = i + 1)}
+              onclick={(e) => {
+                // клик всплывает в строку, там присваивание выполнилось бы
+                // второй раз — гасим всплытие
+                e.stopPropagation();
+                config.active_dpi = i + 1;
+              }}
             >
               {#if config.active_dpi === i + 1}
                 <span class="check">✓</span>
