@@ -254,20 +254,15 @@ fn apply_reading(app: &AppHandle, reading: &Reading) {
     };
 
     let icon = icons::battery_icon(level);
-    let tooltip = label.clone();
-    let text = label;
-    let item = app
-        .state::<AppState>()
-        .battery_item
-        .clone();
+    let item = app.state::<AppState>().battery_item.clone();
     let main = app.clone();
 
     let _ = app.run_on_main_thread(move || {
         if let Some(tray) = main.tray_by_id("battery") {
             let _ = tray.set_icon(Some(icon));
-            let _ = tray.set_tooltip(Some(tooltip));
+            let _ = tray.set_tooltip(Some(label.clone()));
         }
-        let _ = item.set_text(&text);
+        let _ = item.set_text(&label);
     });
 
     let _ = app.emit("battery-changed", level);
