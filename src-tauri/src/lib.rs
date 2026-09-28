@@ -118,8 +118,13 @@ fn with_mouse<T>(
     if guard.is_none() {
         *guard = Some(Mouse::open().map_err(|e| describe(&e))?);
     }
-    let mouse = guard.as_mut().expect("just opened");
-    f(mouse)
+    let result = f(guard.as_mut().expect("just opened"));
+    if result.is_err() {
+        // Ошибка чтения/записи — хэндл, скорее всего, протух (приёмник
+        // переподключали). Закрываем, чтобы следующий вызов открыл заново.
+        *guard = None;
+    }
+    result
 }
 
 pub fn run() {
@@ -229,28 +234,17 @@ fn poll_loop(app: AppHandle, refresh_rx: Receiver<()>) {
 
 fn read_battery(app: &AppHandle) -> Reading {
     let state = app.state::<AppState>();
-    let mut guard = state.mouse.lock().expect("mouse state");
-
-    if guard.is_none() {
-        match Mouse::open() {
-            Ok(mouse) => *guard = Some(mouse),
-            Err(e) => return Reading::Failed(describe(&e)),
+    with_mouse(&state, |mouse| {
+        if mouse.is_wired() {
+            Ok(Reading::Wired)
+        } else {
+            mouse
+                .battery_percent()
+                .map(Reading::Level)
+                .map_err(|e| describe(&e))
         }
-    }
-
-    let mouse = guard.as_ref().expect("just opened");
-    if mouse.is_wired() {
-        return Reading::Wired;
-    }
-
-    match mouse.battery_percent() {
-        Ok(percent) => Reading::Level(percent),
-        Err(e) => {
-            // Handle likely went stale (receiver unplugged) — reopen next poll.
-            *guard = None;
-            Reading::Failed(describe(&e))
-        }
-    }
+    })
+    .unwrap_or_else(Reading::Failed)
 }
 
 fn apply_reading(app: &AppHandle, reading: &Reading) {
