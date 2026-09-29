@@ -17,6 +17,25 @@
 - Работает от обычного пользователя (через udev-правило)
 - Rust-бэкенд поверх libusb (`rusb`), GUI — Tauri 2 + Svelte
 
+## Установка
+
+Сборка пакетов из исходников (зависимости — в разделе «Разработка»):
+
+```sh
+pnpm install
+pnpm tauri build
+```
+
+Готовые артефакты окажутся в `target/release/bundle/` — deb, rpm, AppImage.
+
+udev-правило, один раз от root (иначе доступ к мыши только у root'а):
+
+```sh
+sudo cp udev/99-attack-shark-r1.rules /etc/udev/rules.d/
+sudo udevadm control --reload-rules
+sudo udevadm trigger --action=change --subsystem-match=usb
+```
+
 ## Структура
 
 | Путь                       | Назначение                                    |
@@ -35,13 +54,7 @@ sudo pacman -S --needed webkit2gtk-4.1 libayatana-appindicator librsvg \
     gtk3 pkgconf base-devel libusb rustup
 ```
 
-udev-правило (один раз, нужен root):
-
-```sh
-sudo cp udev/99-attack-shark-r1.rules /etc/udev/rules.d/
-sudo udevadm control --reload-rules
-sudo udevadm trigger --action=change --subsystem-match=usb
-```
+udev-правило — один раз, см. раздел «Установка».
 
 Запуск в разработке:
 
@@ -124,3 +137,9 @@ cargo run -p openshark-driver --example buttons
 - [x] Чтение заряда, индикация в трее
 - [x] Окно настроек (DPI, polling rate, таймеры), сохранение в JSON
 - [x] Восстановление заводской таблицы кнопок
+
+## Лицензия
+
+[GPL-3.0](LICENSE). Реализация протокола портирована с
+[xb-bx/attack-shark-r1-driver](https://github.com/xb-bx/attack-shark-r1-driver)
+(см. раздел «Протокол»).
