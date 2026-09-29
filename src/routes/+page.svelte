@@ -15,6 +15,16 @@
 
   const RATES = [125, 250, 500, 1000];
 
+  // Кодировка скорости: холодный → тёплый по росту Гц, заливка выбранного
+  // сегмента и оттенок фона берут цвет отсюда; белый текст на них даёт
+  // 4.5..5.4:1 (R-25).
+  const RATE_COLORS: Record<number, string> = {
+    125: "#1f883d",
+    250: "#0969da",
+    500: "#bc4c00",
+    1000: "#cf222e",
+  };
+
   // Фабрика, а не литерал: каждый вызов отдаёт свежий объект и свежий
   // массив dpis, иначе сброс и инициализация делили бы одну ссылку.
   const defaults = (): Config => ({
@@ -29,6 +39,8 @@
   });
 
   let config = $state<Config>(defaults());
+  // снимок последних сохранённых настроек: dirty = есть что применять
+  let saved = $state(JSON.stringify(defaults()));
 
   let status = $state<{ kind: "ok" | "err" | "busy" | "idle"; text: string }>({
     kind: "idle",
@@ -42,6 +54,7 @@
     try {
       const [cfg, onDisk] = await invoke<[Config, boolean]>("get_config");
       config = cfg;
+      saved = JSON.stringify(config);
       status = {
         kind: "idle",
         text: onDisk
@@ -79,6 +92,7 @@
         Math.min(50, config.key_response_time - (config.key_response_time % 2)),
       );
       await invoke("apply_config", { config });
+      saved = JSON.stringify(config);
       status = { kind: "ok", text: "Настройки применены" };
     } catch (e) {
       status = { kind: "err", text: `Не удалось применить настройки: ${e}` };
@@ -101,6 +115,7 @@
   }
 
   const activeDpi = $derived(config.dpis[config.active_dpi - 1] ?? 0);
+  const dirty = $derived(JSON.stringify(config) !== saved);
 
   load();
 </script>
@@ -108,30 +123,36 @@
 {#snippet seg(label: string, value: number)}
   <button
     class:on={config.polling_rate === value}
+    style:--seg={RATE_COLORS[value]}
     onclick={() => (config.polling_rate = value)}
   >
     {label}
   </button>
 {/snippet}
 
-{#snippet toggle(key: "ripple_control" | "angle_snap", label: string)}
+{#snippet toggle(
+    key: "ripple_control" | "angle_snap",
+    label: string,
+    hint: string,
+  )}
   <button
     class="row toggle"
     role="switch"
     aria-checked={config[key]}
     onclick={() => (config[key] = !config[key])}
   >
-    <span>{label}</span>
+    <span>{label} <small>({hint})</small></span>
     <span class="switch" class:on={config[key]}><i></i></span>
   </button>
 {/snippet}
 
-<!-- фон всего окна: Originkit Ribbon Glow -->
-<div class="bg-glow">
+<!-- фон всего окна: Originkit Ribbon Glow; --rate красит подложку
+     под активную частоту опроса -->
+<div class="bg-glow" style:--rate={RATE_COLORS[config.polling_rate]}>
   <RibbonGlow style="position:absolute;inset:0" />
 </div>
 
-<div class="shell">
+<div class="shell" class:dirty={dirty}>
   <header>
     <div class="brand">
       <span class="logo">R1</span>
@@ -151,6 +172,16 @@
       {batteryText}
     </button>
   </header>
+
+  <!-- статус и «По умолчанию» — сверху; «Применить» всплывает снизу (dirty) -->
+  <div class="topbar">
+    {#if status.kind === "err"}
+      <span class="banner">{status.text}</span>
+    {:else}
+      <span class="status" data-kind={status.kind}>{status.text}</span>
+    {/if}
+    <button class="ghost" onclick={resetDefaults}>По умолчанию</button>
+  </div>
 
   <div class="grid">
     <!-- ЛЕВАЯ КОЛОНКА: опрос и DPI -->
@@ -261,14 +292,18 @@
       </label>
 
       <h2>Датчики</h2>
-      {@render toggle("ripple_control", "Ripple control")}
-      {@render toggle("angle_snap", "Angle snap")}
+      {@render toggle("ripple_control", "Ripple control", "подавление ряби")}
+      {@render toggle("angle_snap", "Angle snap", "выравнивание по осям")}
 
       <div class="danger">
         <h2>Кнопки</h2>
         <p>
           Клики перестали работать: скорее всего таблица переназначения в
           мыши сбилась. Восстановление вернёт заводские функции.
+        </p>
+        <p class="combo">
+          Чтобы восстановить, нажми на клаве комбинацию
+          <kbd>Ctrl+Shift+Alt+R</kbd>
         </p>
         <button class="warn" onclick={resetButtons} disabled={status.kind === "busy"}>
           Восстановить кнопки
@@ -277,19 +312,14 @@
     </aside>
   </div>
 
-  <footer>
-    {#if status.kind === "err"}
-      <span class="banner">{status.text}</span>
-    {:else}
-      <span class="status" data-kind={status.kind}>{status.text}</span>
-    {/if}
-    <div class="actions">
-      <button class="ghost" onclick={resetDefaults}>По умолчанию</button>
+  <!-- всплывает снизу в центре, пока есть несохранённые изменения -->
+  {#if dirty}
+    <div class="applybar">
       <button class="primary" onclick={apply} disabled={status.kind === "busy"}>
         Применить
       </button>
     </div>
-  </footer>
+  {/if}
 </div>
 
 <style>
@@ -343,6 +373,17 @@
     position: fixed;
     inset: 0;
     z-index: 0;
+  }
+
+  /* оттенок подложки в цвет активной частоты: фон реагирует на смену
+     опроса; 0.16 не снижает контраст текста, лежащего прямо на фоне */
+  .bg-glow::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--rate, transparent);
+    opacity: 0.16;
+    transition: background 0.6s ease;
   }
 
   .shell {
@@ -538,13 +579,14 @@
       color 0.15s;
   }
 
+  /* hover подсвечен цветом самой частоты: видно, куда переключится */
   .seg button:hover:not(.on) {
-    background: rgba(255, 255, 255, 0.07);
+    background: color-mix(in srgb, var(--seg) 30%, transparent);
     color: #fff;
   }
 
   .seg button.on {
-    background: linear-gradient(180deg, #0069d9, #0055c2);
+    background: var(--seg);
     color: #fff;
     font-weight: 600;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
@@ -674,6 +716,12 @@
     /* плотный фон вместо blur: кап стекла отдан двум панелям */
     background: rgba(28, 28, 32, 0.92);
     pointer-events: none;
+    transition: transform 0.3s ease;
+  }
+
+  /* «Применить» занимает низ в центре — HUD подскакивает выше, не перекрываются */
+  .shell.dirty .hud {
+    transform: translateX(-50%) translateY(-58px);
   }
 
   .hud-label {
@@ -778,6 +826,11 @@
     background: rgba(255, 255, 255, 0.08);
   }
 
+  .row small {
+    color: var(--txt-3);
+    font-size: 11px;
+  }
+
   .switch {
     position: relative;
     flex: none;
@@ -832,6 +885,18 @@
     color: #b8b3ac;
   }
 
+  /* клавиша в подсказке: читается как физическая кнопка, не как текст */
+  .danger .combo kbd {
+    font-family: inherit;
+    padding: 1px 7px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    background: rgba(0, 0, 0, 0.32);
+    font-size: 11px;
+    color: #f5f5f7;
+    white-space: nowrap;
+  }
+
   .warn {
     width: 100%;
     padding: 8px 12px;
@@ -852,12 +917,12 @@
     opacity: 0.55;
   }
 
-  /* ---- футер */
-  footer {
+  /* ---- верхняя полоса: статус и «По умолчанию» */
+  .topbar {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 11px 14px;
+    padding: 9px 14px;
     border-radius: 15px;
     border: 1px solid var(--sep);
     /* плотно, без blur (кап стекла): статусы держат 5:1+ */
@@ -894,14 +959,13 @@
     white-space: nowrap;
   }
 
-  .actions {
-    display: flex;
-    gap: 8px;
+  .topbar .ghost {
     margin-left: auto;
     flex: none;
   }
 
-  .actions button {
+  .topbar button,
+  .applybar button {
     padding: 8px 15px;
     border-radius: 9px;
     border: 1px solid var(--sep);
@@ -914,7 +978,7 @@
 
   .ghost {
     background: rgba(255, 255, 255, 0.08);
-    /* 0.4: граница кнопки к футеру 3:1 (фон кнопки почти неотличим) */
+    /* 0.4: граница кнопки к полосе 3:1 (фон кнопки почти неотличим) */
     border-color: rgba(255, 255, 255, 0.4);
     color: #d1d1d6;
   }
@@ -934,13 +998,48 @@
     filter: brightness(1.1);
   }
 
-  .actions button:disabled {
+  .applybar button:disabled {
     opacity: 0.55;
+  }
+
+  /* ---- всплывает снизу в центре, пока настройки не применены */
+  .applybar {
+    position: fixed;
+    left: 50%;
+    bottom: 14px;
+    z-index: 30;
+    transform: translateX(-50%);
+    animation: rise 0.25s cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+
+  .applybar .primary {
+    padding: 10px 26px;
+    border-radius: 12px;
+    font-size: 13px;
+    /* лежит прямо на Glow: плотная тень вместо стеклянной подложки */
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateX(-50%) translateY(16px);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .applybar {
+      animation: none;
+    }
+
+    .hud {
+      transition: none;
+    }
   }
 
   /* Низкая ширина: центр перестаёт вмещать HUD (брейкпоинт там, где
      контент реально ломается: 272*2 + отступы + 220 под HUD = 820).
-     Три колонки складываются в одну, футер с «Применить» залипает снизу. */
+     Три колонки складываются в одну. */
   @media (max-width: 820px) {
     .shell {
       overflow-y: auto;
@@ -958,12 +1057,6 @@
 
     .panel {
       overflow: visible;
-    }
-
-    footer {
-      position: sticky;
-      bottom: 0;
-      z-index: 2;
     }
   }
 </style>
