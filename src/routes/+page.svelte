@@ -49,10 +49,6 @@
   let batteryText = $state("…");
   let batteryKind = $state<"load" | "cable" | "ok" | "low" | "off">("load");
 
-  let bendAnim: SVGAnimateElement | undefined = $state();
-  // фон выгнут: живёт ровно одну волну (850ms), потом снимается
-  let bending = $state(false);
-
   async function load() {
     status = { kind: "busy", text: "Читаем настройки с мыши…" };
     try {
@@ -121,29 +117,6 @@
   const activeDpi = $derived(config.dpis[config.active_dpi - 1] ?? 0);
   const dirty = $derived(JSON.stringify(config) !== saved);
 
-  // dirty false→true: фон изгибается волной один раз, пока кнопка выезжает
-  let bent = false;
-  $effect(() => {
-    if (!dirty) {
-      bent = false;
-      return;
-    }
-    if (bent) return;
-    bent = true;
-    bending = true;
-    try {
-      bendAnim?.beginElement();
-    } catch {
-      /* SMIL может быть отключён — без волны тоже ничего */
-    }
-    const t = setTimeout(() => (bending = false), 850);
-    return () => {
-      bent = false;
-      bending = false;
-      clearTimeout(t);
-    };
-  });
-
   load();
 </script>
 
@@ -175,43 +148,9 @@
 
 <!-- фон всего окна: Originkit Ribbon Glow; --rate красит подложку
      под активную частоту опроса -->
-<div
-  class="bg-glow"
-  class:bending
-  style:--rate={RATE_COLORS[config.polling_rate]}
->
+<div class="bg-glow" style:--rate={RATE_COLORS[config.polling_rate]}>
   <RibbonGlow style="position:absolute;inset:0" />
 </div>
-
-<!-- сгиб фона при появлении «Применить»: низкочастотная карта шума
-     гладко выгибает поверхность, scale гоняется 0→30→0 -->
-<svg class="fx" width="0" height="0" aria-hidden="true" focusable="false">
-  <filter id="bend" x="-6%" y="-6%" width="112%" height="112%">
-    <feTurbulence
-      type="fractalNoise"
-      baseFrequency="0.01"
-      numOctaves="1"
-      seed="7"
-      result="n"
-    />
-    <feDisplacementMap
-      in="SourceGraphic"
-      in2="n"
-      scale="0"
-      xChannelSelector="R"
-      yChannelSelector="G"
-    >
-      <animate
-        bind:this={bendAnim}
-        attributeName="scale"
-        values="0;30;0"
-        dur="0.7s"
-        begin="indefinite"
-        fill="freeze"
-      />
-    </feDisplacementMap>
-  </filter>
-</svg>
 
 <div class="shell" class:dirty={dirty}>
   <header>
@@ -443,17 +382,6 @@
     background: var(--rate, transparent);
     opacity: 0.16;
     transition: background 0.6s ease;
-  }
-
-  /* волна деформации: пока выезжает «Применить», Glow выгибается
-     изгибом-кривой (feTurbulence гоняет scale 0→30→0) */
-  .bg-glow.bending {
-    filter: url(#bend);
-  }
-
-  /* 0×0-фильтр вне потока: не создаёт строку над .shell */
-  .fx {
-    position: absolute;
   }
 
   .shell {
@@ -1116,10 +1044,6 @@
   @media (prefers-reduced-motion: reduce) {
     .applybar .primary {
       animation: none;
-    }
-
-    .bg-glow.bending {
-      filter: none;
     }
 
     .hud {
