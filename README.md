@@ -17,7 +17,8 @@
 - Работает от обычного пользователя (через udev-правило)
 - Rust-бэкенд поверх libusb (`rusb`), GUI — Tauri 2 + Svelte
 
-## Установка
+<details>
+<summary><b>Установка</b></summary>
 
 Сборка пакетов из исходников (зависимости — в разделе «Разработка»):
 
@@ -36,16 +37,10 @@ sudo udevadm control --reload-rules
 sudo udevadm trigger --action=change --subsystem-match=usb
 ```
 
-## Структура
+</details>
 
-| Путь                       | Назначение                                    |
-| -------------------------- | --------------------------------------------- |
-| `crates/openshark-driver`  | низкоуровневый USB-драйвер (libusb), без GUI   |
-| `src-tauri`                | Tauri-бэкенд: трей, команды, опрос батареи     |
-| `src/` + `static/`          | GUI на SvelteKit — окно настроек               |
-| `udev/99-attack-shark-r1.rules` | права доступа к устройству для обычного пользователя |
-
-## Разработка
+<details>
+<summary><b>Разработка и сборка</b></summary>
 
 Зависимости (Arch/CachyOS):
 
@@ -104,7 +99,22 @@ cargo run -p openshark-driver --example battery
 cargo run -p openshark-driver --example buttons
 ```
 
-## Протокол
+</details>
+
+<details>
+<summary><b>Структура проекта</b></summary>
+
+| Путь                       | Назначение                                    |
+| -------------------------- | --------------------------------------------- |
+| `crates/openshark-driver`  | низкоуровневый USB-драйвер (libusb), без GUI   |
+| `src-tauri`                | Tauri-бэкенд: трей, команды, опрос батареи     |
+| `src/` + `static/`          | GUI на SvelteKit — окно настроек               |
+| `udev/99-attack-shark-r1.rules` | права доступа к устройству для обычного пользователя |
+
+</details>
+
+<details>
+<summary><b>Протокол</b></summary>
 
 Устройство: VID `0x1d57`, PID `0xfa60` (2.4G) / `0xfa61` (провод), interface 2.
 
@@ -121,7 +131,10 @@ cargo run -p openshark-driver --example buttons
 > **Важно:** мышь должна быть разбужена (подёргать её), иначе отчёты не
 > ACK-ятся — это выглядит как «мышь не отвечает».
 
-## Замечания
+</details>
+
+<details>
+<summary><b>Замечания</b></summary>
 
 - **NVIDIA + Wayland:** WebKitGTK падает с `Error 71 (Protocol error)` при
   показе окна. `src-tauri/src/main.rs` автоматически выставляет
@@ -132,14 +145,15 @@ cargo run -p openshark-driver --example buttons
 - Тесты с реальным железом (`--ignored`) не запускайте во время игры:
   `apply_config` переписывает настройки мыши.
 
-## Статус
+</details>
+
+<details>
+<summary><b>Статус</b></summary>
 
 - [x] Чтение заряда, индикация в трее
 - [x] Окно настроек (DPI, polling rate, таймеры), сохранение в JSON
 - [x] Восстановление заводской таблицы кнопок
 
-## Лицензия
+</details>
 
-[GPL-3.0](LICENSE). Реализация протокола портирована с
-[xb-bx/attack-shark-r1-driver](https://github.com/xb-bx/attack-shark-r1-driver)
-(см. раздел «Протокол»).
+**Лицензия:** [GPL-3.0](LICENSE).
