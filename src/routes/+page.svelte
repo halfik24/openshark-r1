@@ -581,10 +581,14 @@
     display: grid;
     grid-template-columns: 272px minmax(0, 1fr) 272px;
     gap: 12px;
+    /* панели — по содержимому, не ползут вниз пустотой */
+    align-items: start;
   }
 
   .panel {
     min-height: 0;
+    /* при нехватке места (низкое окно) панель скроллится, а не ломает грид */
+    max-height: 100%;
     overflow-y: auto;
     padding: 15px;
     border-radius: 16px;
@@ -756,10 +760,11 @@
     color: var(--txt-3);
   }
 
-  /* ---- центральная сцена */
+  /* ---- центральная сцена: единственная, кто тянется на всю высоту */
   .stage-view {
     position: relative;
     min-height: 0;
+    align-self: stretch;
     border-radius: 18px;
     overflow: hidden;
     border: 1px solid var(--sep);
