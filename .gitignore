@@ -12,3 +12,5 @@ vite.config.ts.timestamp-*
 .originkit/
 .playwright-mcp/
 *.log
+.opencode/
+AGENTS.md
