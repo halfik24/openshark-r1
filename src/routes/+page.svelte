@@ -49,6 +49,10 @@
   let batteryText = $state("…");
   let batteryKind = $state<"load" | "cable" | "ok" | "low" | "off">("load");
 
+  let bendAnim: SVGAnimateElement | undefined = $state();
+  // фон выгнут: живёт ровно одну волну (850ms), потом снимается
+  let bending = $state(false);
+
   async function load() {
     status = { kind: "busy", text: "Читаем настройки с мыши…" };
     try {
@@ -117,6 +121,29 @@
   const activeDpi = $derived(config.dpis[config.active_dpi - 1] ?? 0);
   const dirty = $derived(JSON.stringify(config) !== saved);
 
+  // dirty false→true: фон изгибается волной один раз, пока кнопка выезжает
+  let bent = false;
+  $effect(() => {
+    if (!dirty) {
+      bent = false;
+      return;
+    }
+    if (bent) return;
+    bent = true;
+    bending = true;
+    try {
+      bendAnim?.beginElement();
+    } catch {
+      /* SMIL может быть отключён — без волны тоже ничего */
+    }
+    const t = setTimeout(() => (bending = false), 850);
+    return () => {
+      bent = false;
+      bending = false;
+      clearTimeout(t);
+    };
+  });
+
   load();
 </script>
 
@@ -148,9 +175,43 @@
 
 <!-- фон всего окна: Originkit Ribbon Glow; --rate красит подложку
      под активную частоту опроса -->
-<div class="bg-glow" style:--rate={RATE_COLORS[config.polling_rate]}>
+<div
+  class="bg-glow"
+  class:bending
+  style:--rate={RATE_COLORS[config.polling_rate]}
+>
   <RibbonGlow style="position:absolute;inset:0" />
 </div>
+
+<!-- сгиб фона при появлении «Применить»: низкочастотная карта шума
+     гладко выгибает поверхность, scale гоняется 0→30→0 -->
+<svg class="fx" width="0" height="0" aria-hidden="true" focusable="false">
+  <filter id="bend" x="-6%" y="-6%" width="112%" height="112%">
+    <feTurbulence
+      type="fractalNoise"
+      baseFrequency="0.01"
+      numOctaves="1"
+      seed="7"
+      result="n"
+    />
+    <feDisplacementMap
+      in="SourceGraphic"
+      in2="n"
+      scale="0"
+      xChannelSelector="R"
+      yChannelSelector="G"
+    >
+      <animate
+        bind:this={bendAnim}
+        attributeName="scale"
+        values="0;30;0"
+        dur="0.7s"
+        begin="indefinite"
+        fill="freeze"
+      />
+    </feDisplacementMap>
+  </filter>
+</svg>
 
 <div class="shell" class:dirty={dirty}>
   <header>
@@ -161,27 +222,25 @@
         <p>Attack Shark · 2.4G / USB</p>
       </div>
     </div>
-    <button
-      class="pill"
-      onclick={refreshBattery}
-      title={batteryKind === "off"
-        ? `${batteryText} — нажмите, чтобы обновить.`
-        : "Обновить заряд"}
-    >
-      <span class="dot" data-kind={batteryKind}></span>
-      {batteryText}
-    </button>
+    <div class="tools">
+      {#if status.kind === "err"}
+        <span class="banner">{status.text}</span>
+      {:else}
+        <span class="status" data-kind={status.kind}>{status.text}</span>
+      {/if}
+      <button class="ghost" onclick={resetDefaults}>По умолчанию</button>
+      <button
+        class="pill"
+        onclick={refreshBattery}
+        title={batteryKind === "off"
+          ? `${batteryText} — нажмите, чтобы обновить.`
+          : "Обновить заряд"}
+      >
+        <span class="dot" data-kind={batteryKind}></span>
+        {batteryText}
+      </button>
+    </div>
   </header>
-
-  <!-- статус и «По умолчанию» — сверху; «Применить» всплывает снизу (dirty) -->
-  <div class="topbar">
-    {#if status.kind === "err"}
-      <span class="banner">{status.text}</span>
-    {:else}
-      <span class="status" data-kind={status.kind}>{status.text}</span>
-    {/if}
-    <button class="ghost" onclick={resetDefaults}>По умолчанию</button>
-  </div>
 
   <div class="grid">
     <!-- ЛЕВАЯ КОЛОНКА: опрос и DPI -->
@@ -384,6 +443,17 @@
     background: var(--rate, transparent);
     opacity: 0.16;
     transition: background 0.6s ease;
+  }
+
+  /* волна деформации: пока выезжает «Применить», Glow выгибается
+     изгибом-кривой (feTurbulence гоняет scale 0→30→0) */
+  .bg-glow.bending {
+    filter: url(#bend);
+  }
+
+  /* 0×0-фильтр вне потока: не создаёт строку над .shell */
+  .fx {
+    position: absolute;
   }
 
   .shell {
@@ -917,19 +987,12 @@
     opacity: 0.55;
   }
 
-  /* ---- верхняя полоса: статус и «По умолчанию» */
-  .topbar {
+  /* ---- шапка справа: статус, «По умолчанию», заряд */
+  .tools {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 9px 14px;
-    border-radius: 15px;
-    border: 1px solid var(--sep);
-    /* плотно, без blur (кап стекла): статусы держат 5:1+ */
-    background: rgba(30, 30, 34, 0.95);
-    box-shadow:
-      0 14px 40px rgba(0, 0, 0, 0.34),
-      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    gap: 10px;
+    min-width: 0;
   }
 
   .status {
@@ -959,12 +1022,11 @@
     white-space: nowrap;
   }
 
-  .topbar .ghost {
-    margin-left: auto;
+  .tools .ghost {
     flex: none;
   }
 
-  .topbar button,
+  .tools .ghost,
   .applybar button {
     padding: 8px 15px;
     border-radius: 9px;
@@ -974,6 +1036,12 @@
     transition:
       background 0.15s,
       filter 0.15s;
+  }
+
+  /* длинная ошибка не должна выдавливать заряд из шапки */
+  .tools .status,
+  .tools .banner {
+    max-width: 44vw;
   }
 
   .ghost {
@@ -1009,7 +1077,6 @@
     bottom: 14px;
     z-index: 30;
     transform: translateX(-50%);
-    animation: rise 0.25s cubic-bezier(0.2, 0.8, 0.3, 1);
   }
 
   .applybar .primary {
@@ -1018,18 +1085,36 @@
     font-size: 13px;
     /* лежит прямо на Glow: плотная тень вместо стеклянной подложки */
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+    /* кнопка не появляется, а выгибается из плоскости интерфейса:
+       из лежачего положения вглубь — пружина с перелётом наружу */
+    transform-origin: 50% 100%;
+    animation: bend-out 0.5s cubic-bezier(0.34, 1.4, 0.4, 1);
   }
 
-  @keyframes rise {
-    from {
+  @keyframes bend-out {
+    0% {
       opacity: 0;
-      transform: translateX(-50%) translateY(16px);
+      transform: perspective(650px) rotateX(72deg) scaleX(0.9);
+    }
+
+    60% {
+      opacity: 1;
+      transform: perspective(650px) rotateX(-7deg) scaleX(1.04);
+    }
+
+    100% {
+      opacity: 1;
+      transform: perspective(650px) rotateX(0deg) scaleX(1);
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .applybar {
+    .applybar .primary {
       animation: none;
+    }
+
+    .bg-glow.bending {
+      filter: none;
     }
 
     .hud {
@@ -1043,6 +1128,24 @@
   @media (max-width: 820px) {
     .shell {
       overflow-y: auto;
+    }
+
+    /* шапка не вмещает статус + кнопки + заряд в одну строку */
+    header {
+      flex-wrap: wrap;
+      row-gap: 6px;
+    }
+
+    .tools {
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .tools .status,
+    .tools .banner {
+      max-width: 100%;
+      order: 3;
+      flex-basis: 100%;
     }
 
     .grid {
