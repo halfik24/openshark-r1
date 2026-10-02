@@ -1,42 +1,42 @@
 # OpenShark-R1
 
-Драйвер и трей-утилита для мыши **Attack Shark R1** для Linux.
+Driver and tray utility for the **Attack Shark R1** mouse on Linux.
 
-В трее две иконки: значок мыши и уровень заряда (обновляется раз в минуту).
-Окно настроек открывается при старте; закрытие прячет его в трей, оттуда же
-пункт **«Настройки…»** открывает заново.
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-green)](LICENSE)
+![Platform: Linux](https://img.shields.io/badge/platform-Linux-lightgrey)
+
+**English** | [Русский](README.ru.md) | [中文](README.zh.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [Français](README.fr.md)
+
+The tray holds two icons: the mouse icon and the battery level (updated once a minute). The settings window opens at start; closing it hides the window to the tray, and the **Settings...** tray item opens it again.
 
 <details>
-<summary><b>Скриншот</b></summary>
+<summary><b>Screenshot</b></summary>
 
-![Окно настроек OpenShark R1](static/screenshot.png)
+![OpenShark R1 settings window](static/screenshot.png)
 
 </details>
 
-## Возможности
+## Features
 
-- Уровень заряда батареи в трее (2.4G-приёмник), цветовая индикация
-- Окно настроек: частота опроса, 6 ступеней DPI и активная ступень,
-  таймеры сна, отклик кнопки, ripple control / angle snap
-- **Восстановление кнопок** — возвращает заводскую таблицу переназначения
-  (чинит «клики не работают», когда кнопки замаплены в пустоту)
-- Настройки хранятся в `~/.config/openshark-r1/config.json`
-- Работает от обычного пользователя (через udev-правило)
-- Rust-бэкенд поверх libusb (`rusb`), GUI — Tauri 2 + Svelte
+- Battery level in the tray (2.4G receiver), color coded by charge
+- Settings window: polling rate, 6 DPI steps and the active step, sleep timers, click response, ripple control / angle snap
+- **Button restore**: writes back the factory remap table (fixes "clicks do nothing" when buttons are mapped to nothing)
+- Settings stored in `~/.config/openshark-r1/config.json`
+- Runs as a regular user (through a udev rule)
+- Rust backend on top of libusb (`rusb`), GUI on Tauri 2 + Svelte
 
-<details>
-<summary><b>Установка</b></summary>
+## Installation
 
-Сборка пакетов из исходников (зависимости — в разделе «Разработка»):
+Build the packages from source (dependencies are listed under [Development](#development)):
 
 ```sh
 pnpm install
 pnpm tauri build
 ```
 
-Готовые артефакты окажутся в `target/release/bundle/` — deb, rpm, AppImage.
+The artifacts land in `target/release/bundle/`: deb, rpm, AppImage.
 
-udev-правило, один раз от root (иначе доступ к мыши только у root'а):
+Install the udev rule once from root, otherwise the mouse is reachable by root only:
 
 ```sh
 sudo cp udev/99-attack-shark-r1.rules /etc/udev/rules.d/
@@ -44,28 +44,25 @@ sudo udevadm control --reload-rules
 sudo udevadm trigger --action=change --subsystem-match=usb
 ```
 
-</details>
+## Development
 
-<details>
-<summary><b>Разработка и сборка</b></summary>
-
-Зависимости (Arch/CachyOS):
+Dependencies (Arch/CachyOS):
 
 ```sh
 sudo pacman -S --needed webkit2gtk-4.1 libayatana-appindicator librsvg \
     gtk3 pkgconf base-devel libusb rustup
 ```
 
-udev-правило — один раз, см. раздел «Установка».
+The udev rule is installed once, see [Installation](#installation).
 
-Запуск в разработке:
+Run in development mode:
 
 ```sh
 pnpm install
 pnpm tauri dev
 ```
 
-Сборка релиза:
+Release build:
 
 ```sh
 pnpm tauri build
@@ -73,94 +70,84 @@ pnpm tauri build
 
 ### AppImage (Arch/CachyOS)
 
-Кеш, который Tauri скачивает для AppImage, на свежих системах ломается:
-linuxdeploy старой сборки падает своим `strip` на `.relr.dyn`, а gtk-плагин
-прописывает форс `GDK_BACKEND=x11` — на NVIDIA+Wayland окно остаётся пустым.
-Один раз подготовить кеш:
+The cache Tauri downloads for AppImage breaks on fresh systems: the old
+linuxdeploy build fails with its `strip` on `.relr.dyn`, and the gtk plugin
+forces `GDK_BACKEND=x11`, which leaves the window blank on NVIDIA + Wayland.
+Prepare the cache once:
 
 ```sh
 sudo pacman -S --needed patchelf
-pnpm tauri build || true   # пополняет кеш; на strip может упасть — это нормально
+pnpm tauri build || true   # fills the cache; strip may fail here, that is fine
 bash scripts/appimage-fix.sh
 pnpm tauri build
 ```
 
-После очистки `~/.cache/tauri` шаги с `appimage-fix.sh` повторить.
+After clearing `~/.cache/tauri`, repeat the `appimage-fix.sh` steps.
 
-Тесты драйвера (хардварные по умолчанию выключены):
+### Tests
+
+Driver tests (hardware ones are off by default):
 
 ```sh
-cargo test                # только юнит-тесты, мышь не трогает
-cargo test -- --ignored   # + тесты на реальном устройстве
+cargo test                # unit tests only, the mouse is not touched
+cargo test -- --ignored   # plus tests on the real device
 ```
 
-Проверка заряда из консоли:
+Battery from the console:
 
 ```sh
 cargo run -p openshark-driver --example battery
 ```
 
-Сброс кнопок в заводские функции из консоли:
+Reset the buttons to factory functions from the console:
 
 ```sh
 cargo run -p openshark-driver --example buttons
 ```
 
-</details>
+## Project structure
 
-<details>
-<summary><b>Структура проекта</b></summary>
+| Path                          | Purpose                                                     |
+| ----------------------------- | ----------------------------------------------------------- |
+| `crates/openshark-driver`     | low-level USB driver (libusb), no GUI                       |
+| `src-tauri`                   | Tauri backend: tray, commands, battery polling              |
+| `src/` + `static/`            | settings window GUI on SvelteKit                            |
+| `udev/99-attack-shark-r1.rules` | device permissions for a regular user                     |
 
-| Путь                       | Назначение                                    |
-| -------------------------- | --------------------------------------------- |
-| `crates/openshark-driver`  | низкоуровневый USB-драйвер (libusb), без GUI   |
-| `src-tauri`                | Tauri-бэкенд: трей, команды, опрос батареи     |
-| `src/` + `static/`          | GUI на SvelteKit — окно настроек               |
-| `udev/99-attack-shark-r1.rules` | права доступа к устройству для обычного пользователя |
+## Protocol
 
-</details>
+Device: VID `0x1d57`, PID `0xfa60` (2.4G) / `0xfa61` (wired), interface 2.
 
-<details>
-<summary><b>Протокол</b></summary>
+- Battery: interrupt-IN EP `0x83`, byte `4` of the report × 10 = percent
+- Configuration (DPI, polling rate, timers): control transfer `SET_REPORT`
+  (`0x21/0x09`, wValue `0x304`–`0x306`); the ACK comes back on the same EP `0x83`
+  with `buf[2] == 0x50`
+- Button table: feature report `0x08`, 59 bytes: `08 3b 01` + 18 slots of
+  3 bytes each + checksum (`sum of bytes[2..58] - 1` in the last byte)
 
-Устройство: VID `0x1d57`, PID `0xfa60` (2.4G) / `0xfa61` (провод), interface 2.
-
-- Батарея — interrupt-IN EP `0x83`, байт `4` отчёта × 10 = проценты
-- Конфигурация (DPI, polling rate, таймеры) — control transfer `SET_REPORT`
-  (`0x21/0x09`, wValue `0x304`–`0x306`); ACK — тот же EP `0x83` с `buf[2] == 0x50`
-- Таблица кнопок — feature-отчёт `0x08`, 59 байт: `08 3b 01` + 18 слотов по
-  3 байта + контрольная сумма (`сумма bytes[2..58] - 1` в последнем байте)
-
-Реализация протокола на Odin взята за основу:
+The protocol implementation in Odin served as the base:
 [xb-bx/attack-shark-r1-driver](https://github.com/xb-bx/attack-shark-r1-driver).
-Формат таблицы кнопок — из семейства протоколов Attack Shark (отчёт `0x08`).
+The button table format comes from the Attack Shark protocol family
+(report `0x08`).
 
-> **Важно:** мышь должна быть разбужена (подёргать её), иначе отчёты не
-> ACK-ятся — это выглядит как «мышь не отвечает».
+> **Important:** the mouse must be woken up (shake it), otherwise reports are
+> not ACKed and it looks like "the mouse does not respond".
 
-</details>
+## Notes
 
-<details>
-<summary><b>Замечания</b></summary>
+- **NVIDIA + Wayland:** WebKitGTK fails with `Error 71 (Protocol error)` when
+  the window is shown. `src-tauri/src/main.rs` sets
+  `__NV_DISABLE_EXPLICIT_SYNC=1` automatically when an NVIDIA driver is found,
+  nothing has to be configured by hand.
+- The window is taller than the visible area (about 1100px of content): the
+  Apply button and the status bar are pinned to the bottom, the rest scrolls.
+- Do not run the hardware tests (`--ignored`) while playing a game:
+  `apply_config` rewrites the mouse settings.
 
-- **NVIDIA + Wayland:** WebKitGTK падает с `Error 71 (Protocol error)` при
-  показе окна. `src-tauri/src/main.rs` автоматически выставляет
-  `__NV_DISABLE_EXPLICIT_SYNC=1`, если найден драйвер NVIDIA — руками ничего
-  настраивать не нужно.
-- Окно выше видимой области (контент ~1100px): кнопки «Применить» и статус
-  закреплены внизу, основная часть прокручивается.
-- Тесты с реальным железом (`--ignored`) не запускайте во время игры:
-  `apply_config` переписывает настройки мыши.
+## Status
 
-</details>
+- [x] Battery reading, tray indicator
+- [x] Settings window (DPI, polling rate, timers), saved to JSON
+- [x] Factory button table restore
 
-<details>
-<summary><b>Статус</b></summary>
-
-- [x] Чтение заряда, индикация в трее
-- [x] Окно настроек (DPI, polling rate, таймеры), сохранение в JSON
-- [x] Восстановление заводской таблицы кнопок
-
-</details>
-
-**Лицензия:** [GPL-3.0](LICENSE).
+**License:** [GPL-3.0](LICENSE).
